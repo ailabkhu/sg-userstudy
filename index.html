@@ -5857,37 +5857,42 @@ h1{font-weight:800;font-size:28px;text-align:center;margin:0 0 22px;color:var(--
 };
 
       /* ---------- UI BUILD: CASE LIST ---------- */
-      const buttonContainer = document.getElementById("button-container");
-      Object.keys(pred_graph_data).forEach((id) => {
-        const caseBlock = document.createElement("div");
-        caseBlock.className = "case-block";
+/* ---------- UI BUILD: CASE LIST ---------- */
+const buttonContainer = document.getElementById("button-container");
 
-        const btn = document.createElement("button");
-        btn.className = "case-btn";
-        btn.textContent = id;
-        btn.onclick = () => showContent(id);
-        caseBlock.appendChild(btn);
+// 🔁 여기만 변경
+// Object.keys(pred_graph_data).forEach((id) => {
+getCaseIds().forEach((id) => {
+  const caseBlock = document.createElement("div");
+  caseBlock.className = "case-block";
 
-        const taskContainer = document.createElement("div");
-        taskContainer.className = "task-status-container";
-        ["Task1", "Task2", "Task3"].forEach((t, i) => {
-          const box = document.createElement("div");
-          box.className = "task-status unsaved";
-          box.id = `${id}_${t}_status`;
-          box.textContent = i + 1;
-          taskContainer.appendChild(box);
-        });
+  const btn = document.createElement("button");
+  btn.className = "case-btn";
+  btn.textContent = id;
+  btn.onclick = () => showContent(id);
+  caseBlock.appendChild(btn);
 
-        const resetBtn = document.createElement("button");
-        resetBtn.className = "reset-case-btn";
-        resetBtn.innerHTML = "🔄";
-        resetBtn.title = `'${id}' 데이터 초기화`;
-        resetBtn.onclick = (e) => resetCase(id, e);
-        taskContainer.appendChild(resetBtn);
+  const taskContainer = document.createElement("div");
+  taskContainer.className = "task-status-container";
+  ["Task1", "Task2", "Task3"].forEach((t, i) => {
+    const box = document.createElement("div");
+    box.className = "task-status unsaved";
+    box.id = `${id}_${t}_status`;
+    box.textContent = i + 1;
+    taskContainer.appendChild(box);
+  });
 
-        caseBlock.appendChild(taskContainer);
-        buttonContainer.appendChild(caseBlock);
-      });
+  const resetBtn = document.createElement("button");
+  resetBtn.className = "reset-case-btn";
+  resetBtn.innerHTML = "🔄";
+  resetBtn.title = `'${id}' 데이터 초기화`;
+  resetBtn.onclick = (e) => resetCase(id, e);
+  taskContainer.appendChild(resetBtn);
+
+  caseBlock.appendChild(taskContainer);
+  buttonContainer.appendChild(caseBlock);
+});
+
 
       /* ---------- HELPERS ---------- */
       const contentDiv = document.getElementById("content");
@@ -5897,12 +5902,31 @@ h1{font-weight:800;font-size:28px;text-align:center;margin:0 0 22px;color:var(--
       }
       // ★ 추가: 케이스별 열 순서(1~3)에 대한 소스 매핑을 영구 저장
 
-      function getCaseIds() {
-        // 숫자 오름차순 보장
-        return Object.keys(pred_graph_data).sort(
-          (a, b) => Number(a) - Number(b)
-        );
-      }
+function getCaseIds() {
+  const ids = Object.keys(pred_graph_data);
+
+  // helper: 앞 3자리(prefix)와 뒤 숫자(suffix) 추출
+  const parseId = (id) => {
+    const s = String(id);
+    const prefix = parseInt(s.slice(0, 3), 10) || 0;       // 앞 3자리
+    // 뒤쪽은 숫자만 취하고, 선행 0 제거 후 정수
+    const restDigits = s.slice(3).replace(/\D/g, "");
+    const stripped = restDigits.replace(/^0+/, "");
+    const suffix = stripped === "" ? 0 : parseInt(stripped, 10);
+    return { prefix, suffix, raw: s };
+  };
+
+  return ids.sort((a, b) => {
+    const A = parseId(a);
+    const B = parseId(b);
+    if (A.prefix !== B.prefix) return A.prefix - B.prefix;
+    if (A.suffix !== B.suffix) return A.suffix - B.suffix;
+    // 완전 동일하면 안정적으로 원문 사전식으로
+    return A.raw.localeCompare(B.raw);
+  });
+}
+
+
       function getNeighbors(caseId) {
         const ids = getCaseIds();
         const idx = ids.indexOf(String(caseId));
@@ -6468,4 +6492,3 @@ h1{font-weight:800;font-size:28px;text-align:center;margin:0 0 22px;color:var(--
     </script>
   </body>
 </html>
-
