@@ -526,7 +526,7 @@
   </head>
   <body>
     <h1>Generated Text Evaluation</h1>
-    <h4>평가한 내용은 평가 시에 사용한 디바이스에 저장되므로 새로고침하거나 다시 들어와도 유지됩니다. <br> (주의: 디바이스를 변경하면, 변경 전 디바이스에서 평가한 데이터를 불러올 수 없습니다.)</h4>
+    <h4>평가한 내용은 평가 시에 사용한 디바이스에 저장되므로 새로고침하거나 다시 들어와도 유지됩니다. <br> (주의: 디바이스 또는 크롬 계정을 변경하면, 이전에 평가한 데이터를 불러올 수 없습니다.)</h4>
     <button class="export-btn" onclick="exportCSV()">⬇️ Export CSV</button>
 
     <div id="main-wrapper">
@@ -4160,10 +4160,10 @@
   }
 };
 
-
   const buttonContainer = document.getElementById("button-container");
-  
-  split_1 = ['16206575', '16208075', '16403450', '165023650', '165024400', '168021925', '168024925', '168027925', '171011550', '171017550', '172037900', '174024200', '174024950', '175070625', '177042825', '177043575', '17806325', '181010700', '181011450', '18204650', '184038875', '185012000', '185012750', '188021625', '188023125', '189027300', '192024575', '193028575', '193046575', '196036525', '197058725', '197062475', '201034800', '201046050']
+
+  const split_1 = ['16206575', '16208075', '16403450', '165023650', '165024400', '168021925', '168024925', '168027925', '171011550', '171017550', '172037900', '174024200', '174024950', '175070625', '177042825', '177043575', '17806325', '181010700', '181011450', '18204650', '184038875', '185012000', '185012750', '188021625', '188023125', '189027300', '192024575', '193028575', '193046575', '196036525', '197058725', '197062475', '201034800', '201046050']
+
   const allow = new Set(split_1.map(String));
 
   getCaseIds()
@@ -4293,156 +4293,187 @@
     return `<div class="text-card">${text}</div>`;
   }
 
-  /* ==================== BUILD TASK (Score1 & Score2) ==================== */
-function buildTaskSection(
-  caseId,
-  taskKey,
-  texts,
-  textsKorean,
-  savedTask,
-  withBDI = false
-) {
-  // texts = [imgText, predText, gtText]
-  const perm = getOrCreateCasePermutation(caseId); // ["img","pred","gt"] → 열1,2,3
-  const srcToText = { img: texts[0], pred: texts[1], gt: texts[2] };
-  const srcToTextKorean = { img: textsKorean[0], pred: textsKorean[1], gt: textsKorean[2] };
+  /* ==================== BUILD TASK (Score1 & Score2 + Task3 GlobalCoherence) ==================== */
+  function buildTaskSection(
+    caseId,
+    taskKey,
+    texts,
+    textsKorean,
+    savedTask,
+    withBDI = false
+  ) {
+    const isTask3 = taskKey === "Task3";
 
-  // 열별 그룹ID (score1/score2 두 묶음)
-  const colIds1 = [1, 2, 3].map((i) => `${caseId}_${taskKey}_col${i}_score1`);
-  const colIds2 = [1, 2, 3].map((i) => `${caseId}_${taskKey}_col${i}_score2`);
-  const bdiGroupId = `${caseId}_${taskKey}_bdi`;
-  const annotId = `${caseId}_${taskKey}_annot`;
+    // texts = [imgText, predText, gtText]
+    const perm = getOrCreateCasePermutation(caseId); // ["img","pred","gt"] → 열1,2,3
+    const srcToText = { img: texts[0], pred: texts[1], gt: texts[2] };
+    const srcToTextKorean = { img: textsKorean[0], pred: textsKorean[1], gt: textsKorean[2] };
 
-  // 저장된 값 → 열에 맞춰 프리셀렉트 (score1/score2)
-  const getSaved = (s, k) =>
-    (savedTask && (savedTask[`${s}_score${k}`] || "")) || "";
-  const selectedVals1 = perm.map((src) => getSaved(src, 1)); // [열1score1, 열2score1, 열3score1]
-  const selectedVals2 = perm.map((src) => getSaved(src, 2)); // [열1score2, 열2score2, 열3score2]
+    // 열별 그룹ID (score1/score2/GC)
+    const colIds1 = [1, 2, 3].map((i) => `${caseId}_${taskKey}_col${i}_score1`);
+    const colIds2 = [1, 2, 3].map((i) => `${caseId}_${taskKey}_col${i}_score2`);
+    const colIdsGC = [1, 2, 3].map((i) => `${caseId}_${taskKey}_col${i}_gc`);
+    const bdiGroupId = `${caseId}_${taskKey}_bdi`;
+    const annotId = `${caseId}_${taskKey}_annot`;
 
-  // 텍스트 3열
-  const gridHead = `
-    <div class="grid-head">
-      <div><span class="src">First sample</span></div>
-      <div><span class="src">Second sample</span></div>
-      <div><span class="src">Third sample</span></div>
-    </div>`;
-  const gridTexts = `
-    <div class="triple-grid">
-      ${textCardHTML(srcToText[perm[0]] || "-")}
-      ${textCardHTML(srcToText[perm[1]] || "-")}
-      ${textCardHTML(srcToText[perm[2]] || "-")}
-      ${textCardHTML(srcToTextKorean[perm[0]] || "-")}
-      ${textCardHTML(srcToTextKorean[perm[1]] || "-")}
-      ${textCardHTML(srcToTextKorean[perm[2]] || "-")}
-    </div>`;
+    // 저장된 값 → 열에 맞춰 프리셀렉트
+    const getSaved = (s, k) =>
+      (savedTask && (savedTask[`${s}_score${k}`] || "")) || "";
+    const selectedVals1 = perm.map((src) => getSaved(src, 1));
+    const selectedVals2 = perm.map((src) => getSaved(src, 2));
+    const selectedValsGC = perm.map((src) => (savedTask && savedTask[`${src}_gc`]) || ""); // Task3 전용
 
-// 태스크별 커스텀 라벨 정의 (원하는 대로 바꾸세요)
-const SCORE_LABELS = {
-  Task1: {
-    score1: "Anatomical Accuracy (해부학적 정확성)",
-    score2: "Descriptive Detail (설명의 상세함)",
-  },
-  Task2: {
-    score1: "Clinical Accuracy (임상적 정확성)",
-    score2: "Reasoning Depth (추론의 상세함)",
-  },
-  Task3: {
-    score1: "Clinical Validity (계획의 임상적 타당성)",
-    score2: "Detail & Feasibility (계획의 세밀함 및 현실성)",
-  },
-};
+    // 텍스트 3열
+    const gridHead = `
+      <div class="grid-head">
+        <div><span class="src">First sample</span></div>
+        <div><span class="src">Second sample</span></div>
+        <div><span class="src">Third sample</span></div>
+      </div>`;
+    const gridTexts = `
+      <div class="triple-grid">
+        ${textCardHTML(srcToText[perm[0]] || "-")}
+        ${textCardHTML(srcToText[perm[1]] || "-")}
+        ${textCardHTML(srcToText[perm[2]] || "-")}
+        ${textCardHTML(srcToTextKorean[perm[0]] || "-")}
+        ${textCardHTML(srcToTextKorean[perm[1]] || "-")}
+        ${textCardHTML(srcToTextKorean[perm[2]] || "-")}
+      </div>`;
 
-function getScoreLabels(taskKey){
-  const c = SCORE_LABELS[taskKey] || {};
-  return {
-    score1: c.score1 || `Score_${taskKoreanName(taskKey)}_1`,
-    score2: c.score2 || `Score_${taskKoreanName(taskKey)}_2`,
-  };
-}
-const { score1: score1Label, score2: score2Label } = getScoreLabels(taskKey);
+    // 라벨
+    const SCORE_LABELS = {
+      Task1: {
+        score1: "Anatomical Accuracy (해부학적 정확성)",
+        score2: "Descriptive Detail (설명의 상세함)",
+      },
+      Task2: {
+        score1: "Clinical Accuracy (임상적 정확성)",
+        score2: "Reasoning Depth (추론의 상세함)",
+      },
+      Task3: {
+        score1: "Clinical Validity (계획의 임상적 타당성)",
+        score2: "Detail & Feasibility (계획의 세밀함 및 현실성)",
+      },
+    };
+    function getScoreLabels(taskKey){
+      const c = SCORE_LABELS[taskKey] || {};
+      return {
+        score1: c.score1 || `Score_${taskKey}_1`,
+        score2: c.score2 || `Score_${taskKey}_2`,
+      };
+    }
+    const { score1: score1Label, score2: score2Label } = getScoreLabels(taskKey);
 
-  // ✅ Score1 행 (세 칸)
- const scoresRow1 = `
-  <div class="score-row">
-    ${[0, 1, 2]
-      .map(
-        (i) => `
-      <div class="score-group">
-        <span class="score-label">${score1Label}: </span>
-        <div id="${colIds1[i]}" class="score-buttons" pred_graph_data-selected="${selectedVals1[i]}">
-          ${scoreButtonsHTML(colIds1[i], selectedVals1[i])}
-        </div>
-      </div>`
-      )
-      .join("")}
-  </div>`;
+    // Score1
+    const scoresRow1 = `
+      <div class="score-row">
+        ${[0, 1, 2]
+          .map(
+            (i) => `
+          <div class="score-group">
+            <span class="score-label">${score1Label}: </span>
+            <div id="${colIds1[i]}" class="score-buttons" pred_graph_data-selected="${selectedVals1[i]}">
+              ${scoreButtonsHTML(colIds1[i], selectedVals1[i])}
+            </div>
+          </div>`
+          )
+          .join("")}
+      </div>`;
 
-  // ✅ Score2 행 (세 칸)
- const scoresRow2 = `
-  <div class="score-row">
-    ${[0, 1, 2]
-      .map(
-        (i) => `
-      <div class="score-group">
-        <span class="score-label">${score2Label}: </span>
-        <div id="${colIds2[i]}" class="score-buttons" pred_graph_data-selected="${selectedVals2[i]}">
-          ${scoreButtonsHTML(colIds2[i], selectedVals2[i])}
-        </div>
-      </div>`
-      )
-      .join("")}
-  </div>`;
+    // Score2
+    const scoresRow2 = `
+      <div class="score-row">
+        ${[0, 1, 2]
+          .map(
+            (i) => `
+          <div class="score-group">
+            <span class="score-label">${score2Label}: </span>
+            <div id="${colIds2[i]}" class="score-buttons" pred_graph_data-selected="${selectedVals2[i]}">
+              ${scoreButtonsHTML(colIds2[i], selectedVals2[i])}
+            </div>
+          </div>`
+          )
+          .join("")}
+      </div>`;
 
-  const bdiSaved = savedTask?.bdi || "";
-  const annotSaved = savedTask?.annotation || "";
-  const bdiRow = withBDI
-    ? `
-      <h3 class="fancy-h3" id="taskHeading">• Please determine <strong>BDI Risk Level.</strong> (1 = Very Low; 2 = Low; 3 = Moderate; 4 = High; 5 = Very High)\n (<strong>BDI 위험 수준</strong>을 판단해주세요.  1 = 매우 낮음, 2 = 낮음, 3 = 보통, 4 = 높음, 5 = 매우 높음)</h3>
-      <div class="bdi-row">
-        <span class="score-label">BDI Risk Level</span>
-        <div id="${bdiGroupId}" class="score-buttons" pred_graph_data-selected="${bdiSaved}">
-          ${scoreButtonsHTML(bdiGroupId, bdiSaved)}
-        </div>
-      </div>`
-    : "";
+    const bdiSaved = savedTask?.bdi || "";
+    const annotSaved = savedTask?.annotation || "";
+    const bdiRow = withBDI
+      ? `
+        <h3 class="fancy-h3" id="taskHeading">• Please determine <strong>BDI Risk Level.</strong> (1 = Very Low; 2 = Low; 3 = Moderate; 4 = High; 5 = Very High)\n (<strong>BDI 위험 수준</strong>을 판단해주세요.  1 = 매우 낮음, 2 = 낮음, 3 = 보통, 4 = 높음, 5 = 매우 높음)</h3>
+        <div class="bdi-row">
+          <span class="score-label">BDI Risk Level</span>
+          <div id="${bdiGroupId}" class="score-buttons" pred_graph_data-selected="${bdiSaved}">
+            ${scoreButtonsHTML(bdiGroupId, bdiSaved)}
+          </div>
+        </div>`
+      : "";
 
-  const annot = `
-    <textarea id="${annotId}" class="annot-box" placeholder="Write your annotation for ${taskKey} here...">${annotSaved || ""}</textarea>
-  `;
+    const annot = `
+      <textarea id="${annotId}" class="annot-box" placeholder="Write your annotation for ${taskKey} here...">${annotSaved || ""}</textarea>
+    `;
 
-  const isCompleteNow = isTaskComplete(savedTask, withBDI);
-  const saveBtn = `
-    <button class="save-btn ${isCompleteNow ? "modify" : ""}"
-            onclick="saveTask('${caseId}','${taskKey}',${withBDI}, this)">
-      ${isCompleteNow ? "✏️ Modify" : "💾 Save"}
-    </button>`;
+    // Task3 전용: Global Coherence 섹션 (annotation 아래)
+    const gcRow = isTask3
+      ? `
+        <h2> Global Coherence Evaluation</h2>
+        <h3 class="fancy-h3" id="taskHeading">• Evaluate <strong>Global Coherence</strong> — the logical integrity of the Task 1 → Task 2 → Task 3 progression. \nDoes the flow form a single, cohesive line of reasoning without contradictions?\n(1 = Very Low Coherence; 2 = Low Coherence; 3 = Moderate Coherence; 4 = High Coherence; 5 = Very High Coherence) \n (<strong>Global Coherence</strong>: Task 1 → Task 2 → Task 3으로 이어지는 흐름의 논리적 완결성을 평가해주세요. 이 전개 과정이 모순 없이, 하나의 통일된 사고 과정으로 느껴집니까?)</h3>
+        <div class="grid-head">
+        <div><span class="src">First sample</span></div>
+        <div><span class="src">Second sample</span></div>
+        <div><span class="src">Third sample</span></div>
+      </div>
+        <div class="score-row">
+          ${[0, 1, 2].map((i) => `
+            <div class="score-group">
+              <span class="score-label">Global Coherence (전반적 일관성): </span>
+              <div id="${colIdsGC[i]}" class="score-buttons" pred_graph_data-selected="${selectedValsGC[i]}">
+                ${scoreButtonsHTML(colIdsGC[i], selectedValsGC[i])}
+              </div>
+            </div>
+          `).join("")}
+        </div>`
+      : "";
 
-  return `
-    <div class="section" id="${caseId}_${taskKey}_section">
-      <h2>${
-        taskKey === "Task1"
-          ? "Task 1 — Anatomy"
-          : taskKey === "Task2"
-          ? "Task 2 — Insight & BDI Risk"
-          : "Task 3 — Future Plan & Outcome"
-      }</h2>
-      <h3 class="fancy-h3" id="taskHeading">${
-        taskKey === "Task1"
-          ? "• Evaluate three descriptions for <strong>Inflammation, Adhesion, Blood & Fluids, Other Abnormalities</strong> from two aspects―<strong>Anatomical Accuracy and Descriptive Detail</strong>.\n (<strong>염증, 유착, 혈액 및 체액, 기타 이상 소견</strong>에 대한 세 가지 설명을 <strong>해부학적 정확성과 설명의 상세함</strong> 두 가지 측면에서 평가해 주세요.)"
-          : taskKey === "Task2"
-          ? "• Evaluate <strong>Surgical context, Clinical interpretation, Risk level</strong> from two aspect―<strong>Clinical Accuracy and Reasoning Depth</strong>.\n (<strong>수술 맥락, 임상적 해석, 위험 수준</strong>을 <strong>임상적 정확성과 추론의 상세함</strong> 두가지 측면에서 평가해주세요.)"
-          : "• Evaluate <strong>Cautions, Action plans, Predicted outcome</strong> from two aspect―<strong>Clinical Validity and Detail & Feasibility</strong>.\n (<strong>주의사항, 실행 계획, 예측 결과</strong>를 <strong>임상적 타당성과 세밀함 및 현실성</strong> 두가지 측면에서 평가해주세요.)"
-      }</h3>
-      ${gridHead}
-      ${gridTexts}
-      ${scoresRow1}
-      ${scoresRow2}
-      ${bdiRow}
-      <h3 class="fancy-h3" id="taskHeading">• Write your own description following the style above. (위의 샘플 스타일을 참고하여 직접 설명을 작성해 주세요)</h3>
-      ${annot}
-      ${saveBtn}
-    </div>`;
-}
+    // Save 버튼 상태 (표시만): Task3은 GC와 annotation까지 있어야 Modify로 보이게
+    const isTask3CompleteNow = isTask3
+      ? (["img","pred","gt"].every(s => !!savedTask?.[`${s}_score1`] && !!savedTask?.[`${s}_score2`] && !!savedTask?.[`${s}_gc`]) && !!(savedTask?.annotation))
+      : false;
+    const isCompleteNow = isTask3 ? isTask3CompleteNow : isTaskComplete(savedTask, withBDI);
+
+    const saveBtn = `
+      <button class="save-btn ${isCompleteNow ? "modify" : ""}"
+              onclick="saveTask('${caseId}','${taskKey}',${withBDI}, this)">
+        ${isCompleteNow ? "✏️ Modify" : "💾 Save"}
+      </button>`;
+
+    return `
+      <div class="section" id="${caseId}_${taskKey}_section">
+        <h2>${
+          taskKey === "Task1"
+            ? "Task 1 — Anatomy"
+            : taskKey === "Task2"
+            ? "Task 2 — Insight & BDI Risk"
+            : "Task 3 — Future Plan & Outcome"
+        }</h2>
+        <h3 class="fancy-h3" id="taskHeading">${
+          taskKey === "Task1"
+            ? "• Evaluate three descriptions for <strong>Inflammation, Adhesion, Blood & Fluids, Other Abnormalities</strong> from two aspects―<strong>Anatomical Accuracy and Descriptive Detail</strong>.\n (<strong>염증, 유착, 혈액 및 체액, 기타 이상 소견</strong>에 대한 세 가지 설명을 <strong>해부학적 정확성과 설명의 상세함</strong> 두 가지 측면에서 평가해 주세요.)"
+            : taskKey === "Task2"
+            ? "• Evaluate <strong>Surgical context, Clinical interpretation, Risk level</strong> from two aspect―<strong>Clinical Accuracy and Reasoning Depth</strong>.\n (<strong>수술 맥락, 임상적 해석, 위험 수준</strong>을 <strong>임상적 정확성과 추론의 상세함</strong> 두가지 측면에서 평가해주세요.)"
+            : "• Evaluate <strong>Cautions, Action plans, Predicted outcome</strong> from two aspect―<strong>Clinical Validity and Detail & Feasibility</strong>.\n (<strong>주의사항, 실행 계획, 예측 결과</strong>를 <strong>임상적 타당성과 세밀함 및 현실성</strong> 두가지 측면에서 평가해주세요.)"
+        }</h3>
+        ${gridHead}
+        ${gridTexts}
+        ${scoresRow1}
+        ${scoresRow2}
+        ${bdiRow}
+        <h3 class="fancy-h3" id="taskHeading">• Write your own description following the style above. (위의 샘플 스타일을 참고하여 직접 설명을 작성해 주세요. <strong>한국어로 작성 가능</strong>합니다.)</h3>
+        ${annot}
+        ${gcRow}
+        ${saveBtn}
+      </div>`;
+  }
 
   function isTaskComplete(taskObj, withBDI = false) {
     if (!taskObj) return false;
@@ -4469,6 +4500,7 @@ const { score1: score1Label, score2: score2Label } = getScoreLabels(taskKey);
     migrateOldSchemaIfNeeded(savedAll, id);
 
     const savedCase = savedAll[id] || {};
+    const neighbors = getNeighbors(id);
 
     const imagePath = getImagePath(id);
     const task1HTML = buildTaskSection(
@@ -4521,7 +4553,6 @@ const { score1: score1Label, score2: score2Label } = getScoreLabels(taskKey);
       savedCase.Task3,
       false
     );
-    const neighbors = getNeighbors(id);
 
     contentDiv.innerHTML = `
       <div class="content-grid">
@@ -4562,93 +4593,113 @@ const { score1: score1Label, score2: score2Label } = getScoreLabels(taskKey);
         ?.getAttribute("pred_graph_data-selected") || ""
     );
   }
-  const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbze17OlfKSy6KX3KiLBeXit92Ga_WZvbyIgUnLKD_wzS7lK0cSbfaEkISq-l-I_7XwH/exec";
+  const GAS_ENDPOINT =
+    "https://script.google.com/macros/s/AKfycbzkC61rWcaqkBndpFHchqTjcBx9DB9katRNiaSt0wycqx2k39EMC9psezU0ArIRB2F5/exec";
 
-
-async function postToSheet(payload) {
-  const res = await fetch(GAS_ENDPOINT, {
-    method: "POST",
-    body: new URLSearchParams(payload), // Content-Type 자동: application/x-www-form-urlencoded
-  });
-  const data = await res.json();        // 이제 CORS 헤더가 있어서 정상 파싱
-  if (!res.ok || data.ok !== true) {
-    throw new Error(data.error || `HTTP ${res.status}`);
-  }
-}
-
-
-
-async function saveTask(caseId, taskKey, withBDI, btn) {
-  const perm = getOrCreateCasePermutation(caseId); // ["img","pred","gt"] = col1,col2,col3
-
-  // 각 열의 score1 / score2 읽기
-  const read = (i, which) =>
-    readSelected(`${caseId}_${taskKey}_col${i}_score${which}`);
-  const byCol1 = [read(1, 1), read(2, 1), read(3, 1)];
-  const byCol2 = [read(1, 2), read(2, 2), read(3, 2)];
-
-  const bdiScore = withBDI ? readSelected(`${caseId}_${taskKey}_bdi`) : "";
-  const annotEl = document.getElementById(`${caseId}_${taskKey}_annot`);
-  const annot = annotEl?.value || "";
-
-  // 입력 검사
-  const allFilled =
-    byCol1.every(Boolean) && byCol2.every(Boolean) && (!withBDI || !!bdiScore);
-  if (!allFilled) {
-    alert("⚠️ 모든 점수(Score1/Score2)와 필요한 항목을 입력해야 저장할 수 있습니다.");
-    return;
-  }
-  if (annot.trim().length < 20) {
-    alert("✍️ Annotation을 공백 제외 20자 이상 입력해주세요.");
-    annotEl?.focus();
-    return;
+  async function postToSheet(payload) {
+    const res = await fetch(GAS_ENDPOINT, {
+      method: "POST",
+      body: new URLSearchParams(payload), // Content-Type 자동: application/x-www-form-urlencoded
+    });
+    const data = await res.json(); // 이제 CORS 헤더가 있어서 정상 파싱
+    if (!res.ok || data.ok !== true) {
+      throw new Error(data.error || `HTTP ${res.status}`);
+    }
   }
 
-  // 저장 스키마 (기존 그대로)
-  const all = JSON.parse(localStorage.getItem("savedpred_graph_Data") || "{}");
-  if (!all[caseId]) all[caseId] = {};
-  const obj = { bdi: withBDI ? bdiScore : "", annotation: annot };
+  async function saveTask(caseId, taskKey, withBDI, btn) {
+    const perm = getOrCreateCasePermutation(caseId); // ["img","pred","gt"] = col1,col2,col3
 
-  // perm[i] → 열 i의 score1/score2를 src별로 매핑
-  perm.forEach((src, idx) => {
-    obj[`${src}_score1`] = byCol1[idx];
-    obj[`${src}_score2`] = byCol2[idx];
-  });
+    // 각 열의 score1 / score2 읽기
+    const read = (i, which) =>
+      readSelected(`${caseId}_${taskKey}_col${i}_score${which}`);
+    const byCol1 = [read(1, 1), read(2, 1), read(3, 1)];
+    const byCol2 = [read(1, 2), read(2, 2), read(3, 2)];
 
-  all[caseId][taskKey] = obj;
-  localStorage.setItem("savedpred_graph_Data", JSON.stringify(all));
+    // Task3 전용: Global Coherence (1~5)
+    const byColGC = taskKey === "Task3"
+      ? [
+          readSelected(`${caseId}_${taskKey}_col1_gc`),
+          readSelected(`${caseId}_${taskKey}_col2_gc`),
+          readSelected(`${caseId}_${taskKey}_col3_gc`),
+        ]
+      : ["", "", ""];
 
-  // 저장 표시 (기존 UI 로직)
-  markSavedState(caseId, taskKey, withBDI);
-  btn.disabled = true;
-  btn.textContent = "Saved";
-  const expertId=2
-  const payload = {
-    expertId,
-    caseId,
-    taskKey,
-    bdi: obj.bdi ?? "",
-    annotation: obj.annotation ?? "-",
-    img_score1: obj["img_score1"] ?? "",
-    img_score2: obj["img_score2"] ?? "",
-    pred_score1: obj["pred_score1"] ?? "",
-    pred_score2: obj["pred_score2"] ?? "",
-    gt_score1: obj["gt_score1"] ?? "",
-    gt_score2: obj["gt_score2"] ?? "",
-  };
-  console.log(payload)
-  try {
-    await postToSheet(payload);
-  } catch (err) {
-    console.error("[Sheets Save Error]", err);
-  } finally {
-    setTimeout(() => {
-      btn.textContent = "✏️ Modify";
-      btn.classList.add("modify");
-      btn.disabled = false;
-    }, 1200);
+    const bdiScore = withBDI ? readSelected(`${caseId}_${taskKey}_bdi`) : "";
+    const annotEl = document.getElementById(`${caseId}_${taskKey}_annot`);
+    const annot = annotEl?.value || "";
+
+    // 입력 검사
+    const requireGC = taskKey === "Task3";
+    const allFilled =
+      byCol1.every(Boolean) &&
+      byCol2.every(Boolean) &&
+      (!withBDI || !!bdiScore) &&
+      (!requireGC || byColGC.every(Boolean));
+
+    if (!allFilled) {
+      alert("⚠️ 필요한 점수를 모두 입력해야 저장할 수 있습니다. (Task3는 Global Coherence 포함)");
+      return;
+    }
+    if (annot.trim().length < 20) {
+      alert("✍️ Annotation을 공백 제외 20자 이상 입력해주세요.");
+      annotEl?.focus();
+      return;
+    }
+
+    // 저장 스키마
+    const all = JSON.parse(localStorage.getItem("savedpred_graph_Data") || "{}");
+    if (!all[caseId]) all[caseId] = {};
+    const obj = { bdi: withBDI ? bdiScore : "", annotation: annot };
+
+    // perm[i] → 열 i의 score1/score2 (+ Task3는 gc) 를 src별로 매핑
+    perm.forEach((src, idx) => {
+      obj[`${src}_score1`] = byCol1[idx];
+      obj[`${src}_score2`] = byCol2[idx];
+      if (taskKey === "Task3") {
+        obj[`${src}_gc`] = byColGC[idx]; // ✅ Global Coherence 저장
+      }
+    });
+
+    all[caseId][taskKey] = obj;
+    localStorage.setItem("savedpred_graph_Data", JSON.stringify(all));
+
+    // 저장 표시
+    markSavedState(caseId, taskKey, withBDI);
+    btn.disabled = true;
+    btn.textContent = "Saved";
+
+    const expertId = 1;
+    const payload = {
+      expertId,
+      caseId,
+      taskKey,
+      bdi: obj.bdi ?? "",
+      annotation: obj.annotation ?? "-",
+      img_score1: obj["img_score1"] ?? "",
+      img_score2: obj["img_score2"] ?? "",
+      pred_score1: obj["pred_score1"] ?? "",
+      pred_score2: obj["pred_score2"] ?? "",
+      gt_score1: obj["gt_score1"] ?? "",
+      gt_score2: obj["gt_score2"] ?? "",
+      // ✅ Task3 Global Coherence 전송
+      img_gc: obj["img_gc"] ?? "",
+      pred_gc: obj["pred_gc"] ?? "",
+      gt_gc: obj["gt_gc"] ?? "",
+    };
+    console.log(payload);
+    try {
+      await postToSheet(payload);
+    } catch (err) {
+      console.error("[Sheets Save Error]", err);
+    } finally {
+      setTimeout(() => {
+        btn.textContent = "✏️ Modify";
+        btn.classList.add("modify");
+        btn.disabled = false;
+      }, 1200);
+    }
   }
-}
 
   function markSavedState(caseId, taskKey, withBDI) {
     // 열 1~3의 score1/score2 active 버튼에 saved-state 부여
@@ -4663,7 +4714,19 @@ async function saveTask(caseId, taskKey, withBDI, btn) {
         );
         G.querySelector(".active")?.classList.add("saved-state");
       });
+
+      // ✅ Task3의 Global Coherence도 saved-state 적용
+      if (taskKey === "Task3") {
+        const GG = document.getElementById(`${caseId}_${taskKey}_col${i}_gc`);
+        if (GG) {
+          GG.querySelectorAll(".score-btn").forEach((b) =>
+            b.classList.remove("saved-state")
+          );
+          GG.querySelector(".active")?.classList.add("saved-state");
+        }
+      }
     });
+
     if (withBDI) {
       const bdiG = document.getElementById(`${caseId}_${taskKey}_bdi`);
       if (bdiG) {
@@ -4710,13 +4773,17 @@ async function saveTask(caseId, taskKey, withBDI, btn) {
         gt_score2: legacyGt,
         bdi: t.bdi || "",
         annotation: t.annotation || "",
+        // GC는 과거 데이터가 없으므로 비움
+        img_gc: t.img_gc || "",
+        pred_gc: t.pred_gc || "",
+        gt_gc: t.gt_gc || "",
       };
     });
 
     localStorage.setItem("savedpred_graph_Data", JSON.stringify(savedAll));
   }
 
-  /* ==================== CSV EXPORT (Score1 & Score2) ==================== */
+  /* ==================== CSV EXPORT (Score1 & Score2 + Task3 GlobalCoherence) ==================== */
   function exportCSV() {
     const saved = JSON.parse(
       localStorage.getItem("savedpred_graph_Data") || "{}"
@@ -4730,7 +4797,9 @@ async function saveTask(caseId, taskKey, withBDI, btn) {
           (v.img_score1 || v.img_score2 ||
            v.pred_score1 || v.pred_score2 ||
            v.gt_score1 || v.gt_score2 ||
-           v.annotation || v.bdi)
+           v.annotation || v.bdi ||
+           // ✅ Task3 GC 포함
+           v.img_gc || v.pred_gc || v.gt_gc)
         );
       })
     );
@@ -4739,7 +4808,7 @@ async function saveTask(caseId, taskKey, withBDI, btn) {
       return;
     }
 
-    // 헤더: 각 Task당 img/pred/gt × (score1, score2) + annotation (+ Task2 bdi)
+    // 헤더
     let csvHeader =
       [
         "img_name",
@@ -4761,6 +4830,8 @@ async function saveTask(caseId, taskKey, withBDI, btn) {
         "pred_task3_score_1","pred_task3_score_2",
         "gt_task3_score_1","gt_task3_score_2",
         "task3_annotation",
+        // ✅ Task3 Global Coherence (각 샘플)
+        "img_task3_globalcoherence","pred_task3_globalcoherence","gt_task3_globalcoherence",
       ].join(",") + "\n";
 
     let rows = "";
@@ -4781,7 +4852,9 @@ async function saveTask(caseId, taskKey, withBDI, btn) {
         t3.img_score1 || t3.img_score2 ||
         t3.pred_score1 || t3.pred_score2 ||
         t3.gt_score1 || t3.gt_score2 ||
-        t1.annotation || t2.annotation || t3.annotation || t2.bdi;
+        t1.annotation || t2.annotation || t3.annotation || t2.bdi ||
+        // ✅ GC 포함 체크
+        t3.img_gc || t3.pred_gc || t3.gt_gc;
 
       if (!any) return;
 
@@ -4806,6 +4879,9 @@ async function saveTask(caseId, taskKey, withBDI, btn) {
           t3.pred_score1 || "", t3.pred_score2 || "",
           t3.gt_score1 || "", t3.gt_score2 || "",
           escCSV(t3.annotation || ""),
+
+          // ✅ Task3 Global Coherence
+          t3.img_gc || "", t3.pred_gc || "", t3.gt_gc || "",
         ].join(",") + "\n";
     });
 
@@ -4886,5 +4962,6 @@ async function saveTask(caseId, taskKey, withBDI, btn) {
   </body>
 
 </html>
+
 
 
