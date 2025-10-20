@@ -4784,120 +4784,119 @@
   }
 
   /* ==================== CSV EXPORT (Score1 & Score2 + Task3 GlobalCoherence) ==================== */
-  function exportCSV() {
-    const saved = JSON.parse(
-      localStorage.getItem("savedpred_graph_Data") || "{}"
-    );
+/* ==================== CSV EXPORT (UTF-8 BOM + CRLF + 안전 다운로드) ==================== */
+function exportCSV() {
+  const saved = JSON.parse(localStorage.getItem("savedpred_graph_Data") || "{}");
 
-    const hasAnyData = Object.values(saved).some((caseObj) =>
-      ["Task1", "Task2", "Task3"].some((t) => {
-        const v = caseObj?.[t];
-        return (
-          v &&
-          (v.img_score1 || v.img_score2 ||
-           v.pred_score1 || v.pred_score2 ||
-           v.gt_score1 || v.gt_score2 ||
-           v.annotation || v.bdi ||
-           // ✅ Task3 GC 포함
-           v.img_gc || v.pred_gc || v.gt_gc)
-        );
-      })
-    );
-    if (!hasAnyData) {
-      alert("📭 저장된 데이터가 없습니다. 각 Task에서 점수와 메모를 저장한 뒤 다시 시도해주세요.");
-      return;
-    }
-
-    // 헤더
-    let csvHeader =
-      [
-        "img_name",
-
-        // Task1
-        "img_task1_score_1","img_task1_score_2",
-        "pred_task1_score_1","pred_task1_score_2",
-        "gt_task1_score_1","gt_task1_score_2",
-        "task1_annotation",
-
-        // Task2
-        "img_task2_score_1","img_task2_score_2",
-        "pred_task2_score_1","pred_task2_score_2",
-        "gt_task2_score_1","gt_task2_score_2",
-        "task2_annotation","task2_bdi",
-
-        // Task3
-        "img_task3_score_1","img_task3_score_2",
-        "pred_task3_score_1","pred_task3_score_2",
-        "gt_task3_score_1","gt_task3_score_2",
-        "task3_annotation",
-        // ✅ Task3 Global Coherence (각 샘플)
-        "img_task3_globalcoherence","pred_task3_globalcoherence","gt_task3_globalcoherence",
-      ].join(",") + "\n";
-
-    let rows = "";
-    Object.keys(pred_graph_data).forEach((caseId) => {
-      if (!allow.has(String(caseId))) return; // split_1만 내보내고 싶다면 유지
-
-      const t1 = saved?.[caseId]?.Task1 || {};
-      const t2 = saved?.[caseId]?.Task2 || {};
-      const t3 = saved?.[caseId]?.Task3 || {};
-
-      const any =
-        t1.img_score1 || t1.img_score2 ||
-        t1.pred_score1 || t1.pred_score2 ||
-        t1.gt_score1 || t1.gt_score2 ||
-        t2.img_score1 || t2.img_score2 ||
-        t2.pred_score1 || t2.pred_score2 ||
-        t2.gt_score1 || t2.gt_score2 ||
-        t3.img_score1 || t3.img_score2 ||
-        t3.pred_score1 || t3.pred_score2 ||
-        t3.gt_score1 || t3.gt_score2 ||
-        t1.annotation || t2.annotation || t3.annotation || t2.bdi ||
-        // ✅ GC 포함 체크
-        t3.img_gc || t3.pred_gc || t3.gt_gc;
-
-      if (!any) return;
-
-      rows +=
-        [
-          caseId,
-
-          // Task1
-          t1.img_score1 || "", t1.img_score2 || "",
-          t1.pred_score1 || "", t1.pred_score2 || "",
-          t1.gt_score1 || "", t1.gt_score2 || "",
-          escCSV(t1.annotation || ""),
-
-          // Task2
-          t2.img_score1 || "", t2.img_score2 || "",
-          t2.pred_score1 || "", t2.pred_score2 || "",
-          t2.gt_score1 || "", t2.gt_score2 || "",
-          escCSV(t2.annotation || ""), t2.bdi || "",
-
-          // Task3
-          t3.img_score1 || "", t3.img_score2 || "",
-          t3.pred_score1 || "", t3.pred_score2 || "",
-          t3.gt_score1 || "", t3.gt_score2 || "",
-          escCSV(t3.annotation || ""),
-
-          // ✅ Task3 Global Coherence
-          t3.img_gc || "", t3.pred_gc || "", t3.gt_gc || "",
-        ].join(",") + "\n";
-    });
-
-    if (!rows) {
-      alert("📭 저장된 데이터가 없습니다. 각 Task에서 점수와(및 BDI) 메모를 저장한 뒤 다시 시도해주세요.");
-      return;
-    }
-
-    const blob = new Blob([csvHeader + rows], {
-      type: "text/csv;charset=utf-8;",
-    });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `GT_Graph_Evaluation_${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
+  const hasAnyData = Object.values(saved).some((caseObj) =>
+    ["Task1", "Task2", "Task3"].some((t) => {
+      const v = caseObj?.[t];
+      return (
+        v &&
+        (v.img_score1 || v.img_score2 ||
+         v.pred_score1 || v.pred_score2 ||
+         v.gt_score1 || v.gt_score2 ||
+         v.annotation || v.bdi ||
+         v.img_gc || v.pred_gc || v.gt_gc)
+      );
+    })
+  );
+  if (!hasAnyData) {
+    alert("📭 저장된 데이터가 없습니다. 각 Task에서 점수와 메모를 저장한 뒤 다시 시도해주세요.");
+    return;
   }
+
+  const NL = "\r\n"; // Excel 호환 개행
+
+  let csvHeader = [
+    "img_name",
+    "img_task1_score_1","img_task1_score_2",
+    "pred_task1_score_1","pred_task1_score_2",
+    "gt_task1_score_1","gt_task1_score_2",
+    "task1_annotation",
+    "img_task2_score_1","img_task2_score_2",
+    "pred_task2_score_1","pred_task2_score_2",
+    "gt_task2_score_1","gt_task2_score_2",
+    "task2_annotation","task2_bdi",
+    "img_task3_score_1","img_task3_score_2",
+    "pred_task3_score_1","pred_task3_score_2",
+    "gt_task3_score_1","gt_task3_score_2",
+    "task3_annotation",
+    "img_task3_globalcoherence","pred_task3_globalcoherence","gt_task3_globalcoherence",
+  ].join(",") + NL;
+
+  let rows = "";
+  Object.keys(pred_graph_data).forEach((caseId) => {
+    if (!allow.has(String(caseId))) return;
+
+    const t1 = saved?.[caseId]?.Task1 || {};
+    const t2 = saved?.[caseId]?.Task2 || {};
+    const t3 = saved?.[caseId]?.Task3 || {};
+
+    const any =
+      t1.img_score1 || t1.img_score2 ||
+      t1.pred_score1 || t1.pred_score2 ||
+      t1.gt_score1 || t1.gt_score2 ||
+      t2.img_score1 || t2.img_score2 ||
+      t2.pred_score1 || t2.pred_score2 ||
+      t2.gt_score1 || t2.gt_score2 ||
+      t3.img_score1 || t3.img_score2 ||
+      t3.pred_score1 || t3.pred_score2 ||
+      t3.gt_score1 || t3.gt_score2 ||
+      t1.annotation || t2.annotation || t3.annotation || t2.bdi ||
+      t3.img_gc || t3.pred_gc || t3.gt_gc;
+
+    if (!any) return;
+
+    rows += [
+      caseId,
+      t1.img_score1 || "", t1.img_score2 || "",
+      t1.pred_score1 || "", t1.pred_score2 || "",
+      t1.gt_score1 || "", t1.gt_score2 || "",
+      escCSV(t1.annotation || ""),
+      t2.img_score1 || "", t2.img_score2 || "",
+      t2.pred_score1 || "", t2.pred_score2 || "",
+      t2.gt_score1 || "", t2.gt_score2 || "",
+      escCSV(t2.annotation || ""), t2.bdi || "",
+      t3.img_score1 || "", t3.img_score2 || "",
+      t3.pred_score1 || "", t3.pred_score2 || "",
+      t3.gt_score1 || "", t3.gt_score2 || "",
+      escCSV(t3.annotation || ""),
+      t3.img_gc || "", t3.pred_gc || "", t3.gt_gc || "",
+    ].join(",") + NL;
+  });
+
+  if (!rows) {
+    alert("📭 저장된 데이터가 없습니다. 각 Task에서 점수와(및 BDI) 메모를 저장한 뒤 다시 시도해주세요.");
+    return;
+  }
+
+  const csv = csvHeader + rows;
+
+  // ✅ UTF-8 BOM을 바이트로 prepend (엑셀 한글 깨짐 방지)
+  const BOM_BYTES = new Uint8Array([0xEF, 0xBB, 0xBF]);
+  const blob = new Blob([BOM_BYTES, csv], { type: "text/csv;charset=utf-8" });
+
+  const filename = `ID3_GT_Graph_Evaluation_${new Date().toISOString().split("T")[0]}.csv`;
+
+  // ✅ IE/Edge(레거시) 대응
+  if (typeof navigator !== "undefined" && navigator.msSaveOrOpenBlob) {
+    navigator.msSaveOrOpenBlob(blob, filename);
+    return;
+  }
+
+  // ✅ 안전한 다운로드 트리거 (DOM에 append 후 클릭, 그리고 정리)
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 0);
+}
 
   function escCSV(s) {
     const needs = /[",\n]/.test(s);
