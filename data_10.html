@@ -523,7 +523,84 @@
         text-align: center;
       }
     </style>
-  </head>
+  <script>
+/* ==== ONE-PASTE ENHANCER (no A-/A+/Reset) ==== */
+(function () {
+  document.addEventListener('DOMContentLoaded', function () {
+    /* ---------- 1) CSS 주입 ---------- */
+    const css = `
+:root{
+  /* 이미지 칼럼 폭 토큰 (rem + vw 조합 → 반응형 & 글자 크기 변화에도 유연) */
+  --left-col: clamp(22rem, 36vw, 42rem);
+  --left-col-wide: clamp(28rem, 48vw, 64rem);
+}
+#nav-panel{ flex: 0 0 19.375rem !important; } /* 310px -> rem 기반 */
+.content-grid{ grid-template-columns: var(--left-col) 1fr !important; }
+body.wide-image .content-grid{ grid-template-columns: var(--left-col-wide) 1fr !important; }
+body.nav-collapsed #nav-panel{ display:none !important; }
+.case-image{ cursor: zoom-in; }
+.view-toolbar{ display:flex; gap:8px; justify-content:center; margin:8px 0 14px; }
+.tool-btn{
+  background: var(--p-blue); color:#0f1830; border:1px solid transparent; border-radius:12px;
+  padding:8px 12px; font-weight:800; cursor:pointer; transition: background .2s, transform .05s, filter .2s;
+}
+.tool-btn:hover{ background: var(--p-blue-600); filter:saturate(1.05); }
+.tool-btn:active{ transform: translateY(1px); }
+/* 모달 */
+#imgModal { border:none; padding:0; border-radius:12px; max-width:92vw; max-height:92vh; }
+#imgModal::backdrop { background: rgba(0,0,0,.5); }
+#imgModal img{ display:block; max-width:92vw; max-height:92vh; border-radius:12px; }
+#imgModal .close{
+  position:absolute; top:8px; right:10px; background:#fff; border:1px solid var(--divider);
+  border-radius:10px; padding:6px 10px; cursor:pointer; font-weight:800;
+}`;
+    const style = document.createElement('style');
+    style.textContent = css;
+    document.head.appendChild(style);
+
+    /* ---------- 2) 툴바 & 모달 자동 삽입 (버튼 2개만) ---------- */
+    const exportBtn = document.querySelector('.export-btn');
+    if (exportBtn && !document.querySelector('.view-toolbar')) {
+      const toolbar = document.createElement('div');
+      toolbar.className = 'view-toolbar';
+      toolbar.innerHTML = `
+        <button class="tool-btn" data-act="toggleNav">☰ Cases 접기/펼치기</button>
+        <button class="tool-btn" data-act="toggleWide">🖼️ 이미지 칼럼 넓히기</button>
+      `;
+      exportBtn.insertAdjacentElement('afterend', toolbar);
+    }
+    if (!document.getElementById('imgModal')) {
+      const dlg = document.createElement('dialog');
+      dlg.id = 'imgModal';
+      dlg.innerHTML = `
+        <button class="close" data-act="closeModal">✕</button>
+        <img id="modalImg" alt="zoomed case image"/>
+      `;
+      document.body.appendChild(dlg);
+    }
+
+    /* ---------- 3) 이벤트(위임) ---------- */
+    document.addEventListener('click', function(e){
+      const btn = e.target.closest('[data-act]');
+      if (btn) {
+        const act = btn.getAttribute('data-act');
+        if (act === 'toggleNav') document.body.classList.toggle('nav-collapsed');
+        else if (act === 'toggleWide') document.body.classList.toggle('wide-image');
+        else if (act === 'closeModal') document.getElementById('imgModal').close();
+        return;
+      }
+      const imgEl = e.target.closest('.case-image');
+      if (imgEl) {
+        const modal = document.getElementById('imgModal');
+        const modalImg = document.getElementById('modalImg');
+        modalImg.src = imgEl.src;
+        modal.showModal();
+      }
+    }, true);
+  });
+})();
+</script>
+</head>
   <body>
     <h1>Generated Text Evaluation</h1>
     <h4>평가한 내용은 평가 시에 사용한 디바이스에 저장되므로 새로고침하거나 다시 들어와도 유지됩니다. <br> (주의: 디바이스 또는 크롬 계정을 변경하면, 이전에 평가한 데이터를 불러올 수 없습니다.)</h4>
